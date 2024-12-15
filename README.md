@@ -26,7 +26,6 @@
 - [x]  Programmatic access and AWS configured with CLI.
 - [x]  Python3 Installed.
 - [x]  Docker and Kubectl installed.
-- [x]  Code editor (Vscode)
 
 # ✨Let’s Start the Project ✨
 
@@ -56,7 +55,7 @@ To run the application, navigate to the root directory of the project and execut
 python3 app.py
 ```
 
-This will start the Flask server on **`localhost:5000`**. Navigate to [http://localhost:5000/](http://localhost:5000/) on your browser to access the application.
+This will start the Flask server on **`localhost:8000`**. Navigate to [http://localhost:8000/](http://localhost:8000/) on your browser to access the application.
 
 ## **Part 2: Dockerizing the Flask application**
 
@@ -79,11 +78,12 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 # Copy the application code to the working directory
 COPY . .
 
-# Set the environment variables for the Flask app
+# setups params for flask app
 ENV FLASK_RUN_HOST=0.0.0.0
+ENV FLASK_RUN_PORT=8000
 
-# Expose the port on which the Flask app will run
-EXPOSE 5000
+# only for documentation
+EXPOSE 8000
 
 # Start the Flask app when the container is run
 CMD ["flask", "run"]
@@ -102,10 +102,10 @@ docker build -t <image_name> .
 To run the Docker container, execute the following command:
 
 ```
-docker run -p 5000:5000 <image_name>
+docker run -p 8000:8000 <image_name>
 ```
 
-This will start the Flask server in a Docker container on **`localhost:5000`**. Navigate to [http://localhost:5000/](http://localhost:5000/) on your browser to access the application.
+This will start the Flask server in a Docker container on **`localhost:8000`**. Navigate to [http://localhost:8000/](http://localhost:5000/) on your browser to access the application.
 
 ## **Part 3: Pushing the Docker image to ECR**
 
@@ -120,7 +120,7 @@ import boto3
 ecr_client = boto3.client('ecr')
 
 # Create a new ECR repository
-repository_name = 'my-ecr-repo'
+repository_name = 'cloud-naitive-repo'
 response = ecr_client.create_repository(repositoryName=repository_name)
 
 # Print the repository URI
@@ -130,7 +130,25 @@ print(repository_uri)
 
 ### **Step 2: Push the Docker image to ECR**
 
-Push the Docker image to ECR using the push commands on the console:
+1. Retrieve an authentication token and authenticate your Docker client to your registry. Use the AWS CLI:
+```
+aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <ecr_repo_uri>
+```
+
+2. Build your Docker image using the following command. For information on building a Docker file from scratch, see the instructions here . You can skip this step if your image has already been built:
+```
+docker build -t cloud-naitive-repo .
+```
+In case if you want to specify the platform run:
+```
+docker build --platform linux/amd64 -t cloud-naitive-repo .
+```
+3. After the build is completed, tag your image so you can push the image to this repository:
+
+```
+docker tag cloud-naitive-repo:<tag> <ecr_repo_uri>:<tag>
+```
+4. Run the following command to push this image to your newly created AWS repository:
 
 ```
 docker push <ecr_repo_uri>:<tag>
@@ -142,11 +160,12 @@ docker push <ecr_repo_uri>:<tag>
 
 Create an EKS cluster and add node group
 
-### **Step 2: Create a node group**
+```
+eksctl create cluster --name cloud-naitive-cluster --region <region> --nodes 2 --node-type t3.micro
+eksctl utils associate-iam-oidc-provider --region <region> --cluster cloud-naitive-cluster --approve
+```
 
-Create a node group in the EKS cluster.
-
-### **Step 3: Create deployment and service**
+### **Step 2: Create deployment and service**
 
 ```jsx
 from kubernetes import client, config
@@ -173,8 +192,8 @@ deployment = client.V1Deployment(
                 containers=[
                     client.V1Container(
                         name="my-flask-container",
-                        image="568373317874.dkr.ecr.us-east-1.amazonaws.com/my-cloud-native-repo:latest",
-                        ports=[client.V1ContainerPort(container_port=5000)]
+                        image=<ecr_repo_uri>,
+                        ports=[client.V1ContainerPort(container_port=8000)]
                     )
                 ]
             )
@@ -194,7 +213,7 @@ service = client.V1Service(
     metadata=client.V1ObjectMeta(name="my-flask-service"),
     spec=client.V1ServiceSpec(
         selector={"app": "my-flask-app"},
-        ports=[client.V1ServicePort(port=5000)]
+        ports=[client.V1ServicePort(port=8000)]
     )
 )
 
@@ -206,9 +225,11 @@ api_instance.create_namespaced_service(
 )
 ```
 
-make sure to edit the name of the image on line 25 with your image Uri.
+make sure to edit the name of the image on line 25 with your <ecr_repo_uri>.
 
-- Once you run this file by running “python3 eks.py” deployment and service will be created.
+- Once you run this file by running 
+```python3 eks.py```
+deployment and service will be created.
 - Check by running following commands:
 
 ```jsx
@@ -220,5 +241,11 @@ kubectl get pods -n default (to check the pods)
 Once your pod is up and running, run the port-forward to expose the service
 
 ```bash
-kubectl port-forward service/<service_name> 5000:5000
+kubectl port-forward service/<service_name> 8000:8000
 ```
+
+## **Future work: Expose the Service to External Traffic**
+
+
+Now that you can access it locally via ```kubectl port-forward```, the next steps involve ensuring that your app is properly exposed, accessible, and ready for production.
+You can expose your service using an Elastic Load Balancer (ELB), which AWS manages for you.

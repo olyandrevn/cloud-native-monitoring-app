@@ -23,8 +23,8 @@ deployment = client.V1Deployment(
                 containers=[
                     client.V1Container(
                         name="my-flask-container",
-                        image="568373317874.dkr.ecr.us-east-1.amazonaws.com/my_monitoring_app_image:latest",
-                        ports=[client.V1ContainerPort(container_port=5000)]
+                        image="872515273790.dkr.ecr.eu-north-1.amazonaws.com/cloud-naitive-repo:latest",
+                        ports=[client.V1ContainerPort(container_port=8000)]
                     )
                 ]
             )
@@ -44,7 +44,7 @@ service = client.V1Service(
     metadata=client.V1ObjectMeta(name="my-flask-service"),
     spec=client.V1ServiceSpec(
         selector={"app": "my-flask-app"},
-        ports=[client.V1ServicePort(port=5000)]
+        ports=[client.V1ServicePort(port=8000)]
     )
 )
 
